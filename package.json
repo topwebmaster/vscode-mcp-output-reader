@@ -1,0 +1,56 @@
+{
+  "name": "vscode-mcp-output-reader",
+  "displayName": "MCP Output Reader",
+  "description": "MCP server that exposes VS Code Output channels (Ruff, Pylance, ESLint, Python, etc.) to AI models via JSON-RPC 2.0",
+  "version": "0.1.0",
+  "publisher": "topwebmaster",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcpOutputReader.listChannels",
+        "title": "MCP Output Reader: List Captured Channels"
+      },
+      {
+        "command": "mcpOutputReader.showStatus",
+        "title": "MCP Output Reader: Show Server Status"
+      }
+    ],
+    "configuration": {
+      "title": "MCP Output Reader",
+      "properties": {
+        "mcpOutputReader.port": {
+          "type": "number",
+          "default": 6070,
+          "description": "Port on which the MCP server listens"
+        },
+        "mcpOutputReader.maxLines": {
+          "type": "number",
+          "default": 500,
+          "description": "Maximum lines to keep per output channel buffer"
+        },
+        "mcpOutputReader.watchedChannels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Channel names to watch (empty = watch ALL). Examples: [\"Ruff\", \"Pylance\", \"ESLint\", \"Python\"]"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
