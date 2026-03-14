@@ -1,35 +1,81 @@
-# vscode-mcp-output-reader
+<div align="center">
 
-A VS Code extension that exposes all Output channel streams (Ruff, Pylance, ESLint, Python, mypy, etc.) to AI models via **MCP-compatible HTTP and stdio transports** (JSON-RPC 2.0).
+# 🔍 MCP Output Reader for VS Code
+
+**Give your AI assistant real-time access to VS Code Output channels**
+
+[![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.90.0-blue?logo=visualstudiocode)](https://code.visualstudio.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0-green)](https://modelcontextprotocol.io/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![GitHub Stars](https://img.shields.io/github/stars/topwebmaster/vscode-mcp-output-reader?style=social)](https://github.com/topwebmaster/vscode-mcp-output-reader/stargazers)
+
+*Ruff errors • Pylance diagnostics • ESLint warnings • Python output • any Output channel — all accessible to Claude, Cursor, Copilot and Zed*
+
+[Installation](#installation) • [How it works](#how-it-works) • [Configuration](#configuration) • [MCP Clients](#connecting-to-mcp-clients) • [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+## ✨ Why this extension?
+
+AI coding assistants are powerful — but they can’t see what’s happening in your VS Code **Output panel**. When Ruff flags an import, Pylance reports a type error, or your Python script crashes, your AI has no idea.
+
+**MCP Output Reader bridges that gap.** It runs a lightweight [Model Context Protocol](https://modelcontextprotocol.io/) server inside VS Code and streams every Output channel buffer to any MCP-compatible AI client.
+
+```
+VS Code Output channels
+  ├── Ruff          ┌─────────────────┐
+  ├── Pylance  ──►  MCP Output Reader  ┠──►  Claude / Cursor / Zed
+  ├── ESLint        └─────────────────┘
+  └── Python
+```
+
+## 🚀 Features
+
+- 📡 **Dual transport** — HTTP (port 6070) + Unix/Windows socket, run both simultaneously
+- 🔄 **Live capture** — intercepts `vscode.window.createOutputChannel` at runtime, zero config
+- 🎯 **Channel filtering** — watch ALL channels or pin specific ones (`["Ruff", "Pylance"]`)
+- 🔍 **Full-text search** — search across all channels at once
+- 🧹 **Buffer management** — configurable per-channel line limit (default 500)
+- ⚡ **Lightweight** — pure Node.js, no external runtime dependencies
+- 🤝 **MCP 2024-11-05** — implements the latest Model Context Protocol spec
 
 ## How it works
 
-The extension monkey-patches `vscode.window.createOutputChannel` so every channel created by any installed extension is wrapped in a proxy that duplicates its output into an in-memory buffer. Two MCP transports serve these buffers:
+The extension monkey-patches `vscode.window.createOutputChannel` so every channel created by any installed extension is captured into an in-memory ring buffer. Two MCP transports expose these buffers:
 
-- **HTTP transport** — lightweight JSON-RPC 2.0 server on a configurable port (default `6070`)
-- **stdio transport** — Unix Domain Socket (Linux/macOS: `/tmp/vscode-mcp-output-reader.sock`) or Windows Named Pipe (`\\.\pipe\vscode-mcp-output-reader`), compatible with Claude Desktop, Cursor, Zed and any client that spawns MCP servers as child processes
+| Transport | Address | Best for |
+|-----------|---------|----------|
+| **HTTP** | `http://127.0.0.1:6070` | Cursor, web-based MCP clients |
+| **stdio socket** | `/tmp/vscode-mcp-output-reader.sock` (Linux/macOS) · `\\.\pipe\vscode-mcp-output-reader` (Windows) | Claude Desktop, Zed, child-process clients |
 
-Both transports expose the same MCP tools and can run simultaneously.
+Both transports speak JSON-RPC 2.0 and expose identical MCP tools.
 
 ## MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `list_output_channels` | List all captured channels with line counts and timestamps |
-| `read_output_channel` | Read a specific channel buffer (with optional filter and line limit) |
-| `clear_output_channel` | Clear the local buffer for a channel |
-| `search_output_channels` | Search all channels at once for a keyword |
+| Tool | Arguments | Description |
+|------|-----------|-------------|
+| `list_output_channels` | — | List all captured channels with line counts and timestamps |
+| `read_output_channel` | `channel`, `last_n_lines?`, `filter?` | Read a channel buffer with optional tail and grep |
+| `clear_output_channel` | `channel` | Clear the in-memory buffer for a channel |
+| `search_output_channels` | `query` | Full-text search across all channels |
 
 ## Installation
+
+### Option A — From source (development)
 
 ```bash
 git clone https://github.com/topwebmaster/vscode-mcp-output-reader.git
 cd vscode-mcp-output-reader
 npm install
 npm run compile
+# Press F5 in VS Code to launch the Extension Development Host
 ```
 
-Then press `F5` in VS Code to launch the extension host, or package it:
+### Option B — Package as .vsix
 
 ```bash
 npm run package
@@ -51,16 +97,28 @@ Add to your VS Code `settings.json`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `transport` | `"both"` | Transport(s) to enable: `"http"`, `"stdio"`, or `"both"` |
-| `port` | `6070` | Port for the HTTP MCP server |
-| `maxLines` | `500` | Maximum lines kept per channel buffer |
-| `watchedChannels` | `[]` (all) | Filter to specific channels, e.g. `["Ruff", "Pylance", "ESLint"]` |
+| `transport` | `"both"` | `"http"` \| `"stdio"` \| `"both"` |
+| `port` | `6070` | HTTP server port |
+| `maxLines` | `500` | Ring-buffer size per channel |
+| `watchedChannels` | `[]` | Pin to specific channels, empty = capture ALL |
 
-## Connecting to Claude / Cursor / Copilot
+## Connecting to MCP Clients
 
-### HTTP transport
+### Claude Desktop / Zed (stdio socket)
 
-Add to your MCP client config:
+```json
+{
+  "mcpServers": {
+    "vscode-output": {
+      "socketPath": "/tmp/vscode-mcp-output-reader.sock"
+    }
+  }
+}
+```
+
+> **Windows:** use `\\\\.\\pipe\\vscode-mcp-output-reader`
+
+### Cursor / HTTP clients
 
 ```json
 {
@@ -72,23 +130,17 @@ Add to your MCP client config:
 }
 ```
 
-### stdio transport (Unix socket / Named Pipe)
+## Example: Ask your AI
 
-For clients that connect via socket (e.g. Claude Desktop with socket support):
+Once connected, you can ask your AI assistant:
 
-```json
-{
-  "mcpServers": {
-    "vscode-output-stdio": {
-      "socketPath": "/tmp/vscode-mcp-output-reader.sock"
-    }
-  }
-}
-```
+> *“Check the Ruff output channel — are there any lint errors in my current file?”*
 
-On Windows use: `\\\\.\\pipe\\vscode-mcp-output-reader`
+> *“Read the last 20 lines from the Python channel and explain the traceback.”*
 
-## Example usage
+> *“Search all output channels for ‘ImportError’ and suggest a fix.”*
+
+## CLI / curl examples
 
 ```bash
 # List all captured channels
@@ -107,11 +159,43 @@ curl -s -X POST http://127.0.0.1:6070 \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_output_channels","arguments":{"query":"error"}}}'
 ```
 
-## Commands
+## VS Code Commands
 
-- `MCP Output Reader: List Captured Channels` — show all watched channels in a Quick Pick
-- `MCP Output Reader: Show Server Status` — show current port, socket path and channel count
+| Command | Description |
+|---------|-------------|
+| `MCP Output Reader: List Captured Channels` | Show all active channels in a Quick Pick |
+| `MCP Output Reader: Show Server Status` | Show port, socket path and channel count |
+
+## Roadmap
+
+- [ ] VS Code Marketplace publish
+- [ ] WebSocket transport support
+- [ ] Output channel timestamps / diffs
+- [ ] Structured log parsing (JSON logs, stack traces)
+- [ ] Unit tests & integration tests
+- [ ] VS Code Webview dashboard
+
+## Contributing
+
+Contributions are very welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
+
+```bash
+git clone https://github.com/topwebmaster/vscode-mcp-output-reader.git
+npm install
+npm run watch   # TypeScript watch mode
+# Press F5 → Extension Development Host opens
+```
+
+See [open issues](https://github.com/topwebmaster/vscode-mcp-output-reader/issues) for good first contributions.
 
 ## License
 
-MIT
+MIT © [topwebmaster](https://github.com/topwebmaster)
+
+---
+
+<div align="center">
+
+⭐ If this extension helps you, please **star the repo** — it helps others discover it!
+
+</div>
