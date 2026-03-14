@@ -1,7 +1,7 @@
 {
   "name": "vscode-mcp-output-reader",
   "displayName": "MCP Output Reader",
-  "description": "MCP server that exposes VS Code Output channels (Ruff, Pylance, ESLint, Python, etc.) to AI models via JSON-RPC 2.0",
+  "description": "MCP server that exposes VS Code Output channels (Ruff, Pylance, ESLint, Python, etc.) to AI models via HTTP and stdio transports",
   "version": "0.1.0",
   "publisher": "topwebmaster",
   "engines": { "vscode": "^1.90.0" },
@@ -25,7 +25,13 @@
         "mcpOutputReader.port": {
           "type": "number",
           "default": 6070,
-          "description": "Port on which the MCP server listens"
+          "description": "Port on which the HTTP MCP server listens"
+        },
+        "mcpOutputReader.transport": {
+          "type": "string",
+          "enum": ["http", "stdio", "both"],
+          "default": "both",
+          "description": "Transport protocol(s) to enable. 'http' = HTTP only (port 6070), 'stdio' = Unix socket / Windows named pipe only, 'both' = both transports simultaneously (default)"
         },
         "mcpOutputReader.maxLines": {
           "type": "number",
